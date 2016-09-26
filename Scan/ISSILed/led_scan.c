@@ -47,8 +47,8 @@
 
 // TODO Needs to be defined per keyboard
 #define LED_TotalChannels 144
-
-
+#define LED_NumPages 4
+#define LED_InitPage 0
 
 // ----- Structs -----
 
@@ -59,14 +59,6 @@ typedef struct I2C_Buffer {
 	uint16_t  size;
 	uint8_t  *buffer;
 } I2C_Buffer;
-
-typedef struct LED_Buffer {
-	uint8_t i2c_addr;
-	uint8_t reg_addr;
-	uint8_t buffer[LED_BufferLength];
-} LED_Buffer;
-
-
 
 // ----- Function Declarations -----
 
@@ -121,23 +113,93 @@ volatile uint8_t I2C_RxBufferPtr[ I2C_TxBufferLength ];
 volatile I2C_Buffer I2C_TxBuffer = { 0, 0, 0, I2C_TxBufferLength, (uint8_t*)I2C_TxBufferPtr };
 volatile I2C_Buffer I2C_RxBuffer = { 0, 0, 0, I2C_RxBufferLength, (uint8_t*)I2C_RxBufferPtr };
 
-LED_Buffer LED_pageBuffer;
+// TODO STYLE NOTE (that should probably get a functional rewrite)
+// every time you write a register, make sure the buffer gets updated
+// useful for debug dump, especially control registers, though I guess
+// you could also just read from the registers - what this is more
+// useful for is toggle / state tracking without relying on reads
+// which are a unnecessary - we have the technology(/memory)
 
 // A bit mask determining which LEDs are enabled in the ISSI chip
-const uint8_t LED_ledEnableMask1[] = {
-	0xE8, // I2C address
-	0x00, // Starting register address
-	ISSILedMask1_define
+// TODO: should be ifdef'd
+uint8_t LED_enableMaskBuffer[LED_NumPages][18+2] = {
+	{
+		0xE8, // I2C address
+		0x00, // Starting register address
+		ISSILedMask0_define
+	},
+	{
+		0xE8, // I2C address
+		0x00, // Starting register address
+		ISSILedMask1_define
+	},
+	{
+		0xE8, // I2C address
+		0x00, // Starting register address
+		ISSILedMask2_define
+	},
+	{
+		0xE8, // I2C address
+		0x00, // Starting register address
+		ISSILedMask3_define
+	}
+};
+
+// A bit mask determining which LEDs are set to blink in the ISSI chip
+uint8_t LED_blinkMaskBuffer[LED_NumPages][18+2] = {
+	{
+		0xE8, // I2C address
+		0x12, // Blink register address
+		ISSILedBlinkMask0_define
+	},
+	{
+		0xE8, // I2C address
+		0x12, // Blink register address
+		ISSILedBlinkMask1_define
+	},
+	{
+		0xE8, // I2C address
+		0x12, // Blink register address
+		ISSILedBlinkMask2_define
+	},
+	{
+		0xE8, // I2C address
+		0x12, // Blink register address
+		ISSILedBlinkMask3_define
+	}
 };
 
 // Default LED brightness
-const uint8_t LED_defaultBrightness1[] = {
-	0xE8, // I2C address
-	0x24, // Starting register address
-	ISSILedBrightness1_define
+uint8_t LED_brightnessBuffer[LED_NumPages][144+2] = {
+	{
+		0xE8, // I2C address
+		0x24, // Starting register address
+		ISSILedBrightness0_define
+	},
+	{
+		0xE8, // I2C address
+		0x24, // Starting register address
+		ISSILedBrightness1_define
+	},
+	{
+		0xE8, // I2C address
+		0x24, // Starting register address
+		ISSILedBrightness2_define
+	},
+	{
+		0xE8, // I2C address
+		0x24, // Starting register address
+		ISSILedBrightness3_define
+	}
 };
 
+uint8_t LED_controlBuffer[15] = {
+	0xE8, // I2C address
+	0x00, // Starting register address
+	ISSILedControl_define
+};
 
+uint8_t currentPage = LED_InitPage;
 
 // ----- Interrupt Functions -----
 
@@ -395,6 +457,9 @@ inline void LED_setup()
 	// This needs to be done before disabling the hardware shutdown (or the leds will do undefined things)
 	LED_zeroPages( 0x0B, 1, 0x00, 0x0C ); // Control Registers
 
+	// Send default control registers
+	LED_sendPage( (uint8_t*)LED_controlBuffer, sizeof( LED_controlBuffer ), 0x0B );
+
 	// Disable Hardware shutdown of ISSI chip (pull high)
 	GPIOB_PDDR |= (1<<16);
 	PORTB_PCR16 = PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1);
@@ -403,11 +468,27 @@ inline void LED_setup()
 	// Clear LED Pages
 	LED_zeroPages( 0x00, 8, 0x00, 0xB4 ); // LED Registers
 
+	// TODO: should be #ifdef'd
 	// Enable LEDs based upon mask
-	LED_sendPage( (uint8_t*)LED_ledEnableMask1, sizeof( LED_ledEnableMask1 ), 0 );
+	// For each page
+	for ( uint8_t pg = 0; pg < LED_NumPages; pg++ )
+	{
+		LED_sendPage( (uint8_t*)LED_enableMaskBuffer[pg], sizeof( LED_enableMaskBuffer[pg] ), pg );
+		delayMicroseconds( 10 ); // otherwise everything shits the bed
+	}
+
+	for ( uint8_t pg = 0; pg < LED_NumPages; pg++ )
+	{
+		LED_sendPage( (uint8_t*)LED_blinkMaskBuffer[pg], sizeof( LED_blinkMaskBuffer[pg] ), pg );
+		delayMicroseconds( 10 ); // otherwise everything shits the bed
+	}
 
 	// Set default brightness
-	LED_sendPage( (uint8_t*)LED_defaultBrightness1, sizeof( LED_defaultBrightness1 ), 0 );
+	for ( uint8_t pg = 0; pg < LED_NumPages; pg++ )
+	{
+		LED_sendPage( (uint8_t*)LED_brightnessBuffer[pg], sizeof( LED_brightnessBuffer[pg] ), pg );
+		delayMicroseconds( 10 ); // otherwise everything shits the bed
+	}
 
 	// Do not disable software shutdown of ISSI chip unless current is high enough
 	// Require at least 150 mA
@@ -415,6 +496,7 @@ inline void LED_setup()
 	if ( Output_current_available() >= 150 )
 	{
 		// Disable Software shutdown of ISSI chip
+		LED_controlBuffer[0x0A+2] = 0x01;	// update buffer
 		LED_writeReg( 0x0A, 0x01, 0x0B );
 	}
 }
@@ -438,15 +520,15 @@ inline uint8_t I2C_BufferCopy( uint8_t *data, uint8_t sendLen, uint8_t recvLen, 
 	if ( I2C_BufferLen( buffer ) < sendLen + 2 )
 		return 0;
 
-/*
-	print("|");
-	printHex( sendLen + 2 );
-	print("|");
-	printHex( *tail );
-	print("@");
-	printHex( newTail );
-	print("@");
-*/
+
+	// print("|");
+	// printHex( sendLen + 2 );
+	// print("|");
+	// printHex( *tail );
+	// print("@");
+	// printHex( newTail );
+	// print("@");
+
 
 	// If buffer is clean, return 1, otherwise 2
 	reTurn = buffer->head == buffer->tail ? 1 : 2;
@@ -652,11 +734,13 @@ inline uint8_t LED_scan()
 		if ( LED_currentEvent < 150 )
 		{
 			// Enable Software shutdown of ISSI chip
+			LED_controlBuffer[0x0A+2] = 0x00;	// update buffer
 			LED_writeReg( 0x0A, 0x00, 0x0B );
 		}
 		else
 		{
 			// Disable Software shutdown of ISSI chip
+			LED_controlBuffer[0x0A+2] = 0x01;	// update buffer
 			LED_writeReg( 0x0A, 0x01, 0x0B );
 		}
 
@@ -689,14 +773,25 @@ typedef enum LedControlMode {
 	LedControlMode_brightness_decrease_all,
 	LedControlMode_brightness_increase_all,
 	LedControlMode_brightness_set_all,
+	LedControlMode_blink_toggle,
+	LedControlMode_page_set,
+	LedControlMode_enable_toggle,
 } LedControlMode;
 
 typedef struct LedControl {
 	LedControlMode mode;   // XXX Make sure to adjust the .kll capability if this variable is larger than 8 bits
 	uint8_t        amount;
 	uint16_t       index;
+	// uint8_t        page; // commented out because the assumption is that you only want to control what's on
+							// the current page anyway, so there's no reason to change any other page's values 
 } LedControl;
 
+uint8_t pow2[8] = {	// unless you have a better idea - this is how I'm avoiding importing math
+	0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80
+};
+
+// TODO: if not page specified, modify current page
+// TODO: replace all LED_pageBuffer refs with new Buffers
 void LED_control( LedControl *control )
 {
 	// Only send if we've completed all other transactions
@@ -710,49 +805,94 @@ void LED_control( LedControl *control )
 	switch ( control->mode )
 	{
 	case LedControlMode_brightness_decrease:
-		// Don't worry about rolling over, the cycle is quick
-		LED_pageBuffer.buffer[ control->index ] -= control->amount;
+		{
+			uint8_t ind = control->index + control->index/8*8; // wooo int math
+			LED_brightnessBuffer[currentPage][ ind + 2 ] -= control->amount;
+			LED_writeReg( 0x24 + ind, LED_brightnessBuffer[currentPage][ ind + 2 ], currentPage );
+		}
 		break;
 
 	case LedControlMode_brightness_increase:
-		// Don't worry about rolling over, the cycle is quick
-		LED_pageBuffer.buffer[ control->index ] += control->amount;
+		{
+			uint8_t ind = control->index + control->index/8*8; // wooo int math
+			LED_brightnessBuffer[currentPage][ ind + 2 ] += control->amount;
+			LED_writeReg( 0x24 + ind, LED_brightnessBuffer[currentPage][ ind + 2 ], currentPage );
+		}
 		break;
 
 	case LedControlMode_brightness_set:
-		LED_pageBuffer.buffer[ control->index ] = control->amount;
+		{
+			uint8_t ind = control->index + control->index/8*8; // wooo int math
+			LED_brightnessBuffer[currentPage][ ind + 2 ] = control->amount;
+			LED_writeReg( 0x24 + ind, control->amount, currentPage );
+		}
 		break;
 
 	case LedControlMode_brightness_decrease_all:
-		for ( uint8_t channel = 0; channel < LED_TotalChannels; channel++ )
 		{
-			// Don't worry about rolling over, the cycle is quick
-			LED_pageBuffer.buffer[ channel ] -= control->amount;
+			for ( uint8_t channel = 0; channel < LED_TotalChannels; channel++ )
+			{
+				// Don't worry about rolling over, the cycle is quick
+				LED_brightnessBuffer[currentPage][ channel + 2 ] -= control->amount;
+			}
+			// Sync LED buffer with ISSI chip buffer
+			// TODO Support multiple frames
+			LED_sendPage( (uint8_t*)LED_brightnessBuffer[currentPage], sizeof( LED_brightnessBuffer[currentPage] ), currentPage );
 		}
 		break;
 
 	case LedControlMode_brightness_increase_all:
-		for ( uint8_t channel = 0; channel < LED_TotalChannels; channel++ )
 		{
-			// Don't worry about rolling over, the cycle is quick
-			LED_pageBuffer.buffer[ channel ] += control->amount;
+			for ( uint8_t channel = 0; channel < LED_TotalChannels; channel++ )
+			{
+				// Don't worry about rolling over, the cycle is quick
+				LED_brightnessBuffer[currentPage][ channel + 2 ] += control->amount;
+			}
+			// Sync LED buffer with ISSI chip buffer
+			// TODO Support multiple frames
+			LED_sendPage( (uint8_t*)LED_brightnessBuffer[currentPage], sizeof( LED_brightnessBuffer[currentPage] ), currentPage );
 		}
 		break;
 
 	case LedControlMode_brightness_set_all:
-		for ( uint8_t channel = 0; channel < LED_TotalChannels; channel++ )
 		{
-			LED_pageBuffer.buffer[ channel ] = control->amount;
+			for ( uint8_t channel = 0; channel < LED_TotalChannels; channel++ )
+			{
+				LED_brightnessBuffer[currentPage][ channel + 2] = control->amount;
+			}
+			// Sync LED buffer with ISSI chip buffer
+			// TODO Support multiple frames
+			LED_sendPage( (uint8_t*)LED_brightnessBuffer[currentPage], sizeof( LED_brightnessBuffer[currentPage] ), currentPage );
+		}
+		break;
+
+	case LedControlMode_blink_toggle:
+		{
+			uint8_t bitIndex = (control->index) / 8 * 2; // pray the result doesn't go over 18
+			// Modify the value in the existing mask
+			LED_blinkMaskBuffer[currentPage][ bitIndex + 2 ] ^= pow2[control->index % 8];
+			LED_writeReg( 0x12 + bitIndex, LED_blinkMaskBuffer[currentPage][ bitIndex + 2 ], currentPage );
+		}
+		break;
+
+	case LedControlMode_page_set:
+		{
+			currentPage = control->amount % LED_NumPages;
+			LED_controlBuffer[0x01] = currentPage;
+			LED_writeReg( 0x01, currentPage, 0x0B );
+		}
+		break;
+
+	case LedControlMode_enable_toggle:
+		{
+			uint8_t bitIndex = (control->index) / 8 * 2; // pray the result doesn't go over 18
+			// Modify the value in the existing mask
+			LED_enableMaskBuffer[currentPage][ bitIndex + 2 ] ^= pow2[control->index % 8];
+			LED_writeReg( 0x00 + bitIndex, LED_enableMaskBuffer[currentPage][ bitIndex + 2 ], currentPage );
 		}
 		break;
 	}
-
-	// Sync LED buffer with ISSI chip buffer
-	// TODO Support multiple frames
-	LED_pageBuffer.i2c_addr = 0xE8; // Chip 1
-	LED_pageBuffer.reg_addr = 0x24; // Brightness section
-	LED_sendPage( (uint8_t*)&LED_pageBuffer, sizeof( LED_Buffer ), 0 );
-}
+} 
 
 uint8_t LED_control_timer = 0;
 void LED_control_capability( TriggerMacro *trigger, uint8_t state, uint8_t stateType, uint8_t *args )
@@ -797,12 +937,14 @@ void LED_control_capability( TriggerMacro *trigger, uint8_t state, uint8_t state
 	switch ( control->mode )
 	{
 	// Calculate the led address to send
-	// If greater than the Total hannels
+	// If greater than the Total channels
 	// Set address - Total channels
 	// Otherwise, ignore
 	case LedControlMode_brightness_decrease:
 	case LedControlMode_brightness_increase:
 	case LedControlMode_brightness_set:
+	case LedControlMode_blink_toggle:
+	case LedControlMode_enable_toggle:
 		// Ignore if led is on this node
 		if ( control->index < LED_TotalChannels )
 			break;
@@ -820,6 +962,7 @@ void LED_control_capability( TriggerMacro *trigger, uint8_t state, uint8_t state
 	case LedControlMode_brightness_decrease_all:
 	case LedControlMode_brightness_increase_all:
 	case LedControlMode_brightness_set_all:
+	case LedControlMode_page_set:
 		send_packet = 1;
 		break;
 	}
@@ -1028,15 +1171,18 @@ void cliFunc_ledStart( char* args )
 	print( NL ); // No \r\n by default after the command is entered
 	LED_zeroPages( 0x0B, 1, 0x00, 0x0C ); // Control Registers
 	//LED_zeroPages( 0x00, 8, 0x00, 0xB4 ); // LED Registers
-	LED_writeReg( 0x0A, 0x01, 0x0B );
-	LED_sendPage( (uint8_t*)LED_ledEnableMask1, sizeof( LED_ledEnableMask1 ), 0 );
-
+	LED_controlBuffer[0x0A + 2] = 0x01;	// update buffer
+	LED_sendPage( (uint8_t*)LED_controlBuffer, sizeof( LED_controlBuffer ), 0x0B );
+	// Set default enable behaviour for LEDs based on mask
+	LED_sendPage( (uint8_t*)LED_enableMaskBuffer[currentPage], sizeof( LED_enableMaskBuffer[currentPage] ), currentPage );
+	// Set default blink behaviour for LEDs based on mask
+	LED_sendPage( (uint8_t*)LED_blinkMaskBuffer[currentPage], sizeof( LED_blinkMaskBuffer[currentPage] ), currentPage );
 }
 
 void cliFunc_ledTest( char* args )
 {
 	print( NL ); // No \r\n by default after the command is entered
-	LED_sendPage( (uint8_t*)LED_defaultBrightness1, sizeof( LED_defaultBrightness1 ), 0 );
+	LED_sendPage( (uint8_t*)LED_brightnessBuffer[currentPage], sizeof( LED_brightnessBuffer[currentPage] ), currentPage );
 }
 
 void cliFunc_ledZero( char* args )
@@ -1072,11 +1218,17 @@ void cliFunc_ledCtrl( char* args )
 	control.amount = numToInt( arg1Ptr );
 
 
-	// Finally process led index, if it exists
+	// Process led index, if it exists
 	// Default to 0
 	curArgs = arg2Ptr;
 	CLI_argumentIsolation( curArgs, &arg1Ptr, &arg2Ptr );
 	control.index = *arg1Ptr == '\0' ? 0 : numToInt( arg1Ptr );
+
+	// Finally process page to apply it to, if it exists
+	// Default to current page
+	curArgs = arg2Ptr;
+	CLI_argumentIsolation( curArgs, &arg1Ptr, &arg2Ptr );
+	control.index = *arg1Ptr == '\0' ? currentPage : numToInt( arg1Ptr );
 
 	// Process request
 	LED_control( &control );
