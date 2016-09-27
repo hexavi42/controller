@@ -172,7 +172,21 @@ void Macro_layerState( uint8_t state, uint8_t stateType, uint16_t layer, uint8_t
 	// If the layer was not in the LayerIndexStack add it
 	if ( !inLayerIndexStack )
 	{
+		uint8_t ledArgs[] = {7, layer, 0};
+		LED_control_capability(state, stateType, (uint8_t*)ledArgs);
 		macroLayerIndexStack[ macroLayerIndexStackSize++ ] = layer;
+
+		// Layer Debug Mode
+		if ( layerDebugMode )
+		{
+			dbug_msg("LED_layer --> ");
+			printHex_op( layer, 0 );
+			print( " " );
+			printHex_op( state, 0 );
+			print(" ");
+			printHex_op( stateType, 0 );
+			print( NL );
+		}
 	}
 
 	// If the layer is in the LayerIndexStack and the state is 0x00, remove
@@ -188,6 +202,21 @@ void Macro_layerState( uint8_t state, uint8_t stateType, uint16_t layer, uint8_t
 
 		// Reduce LayerIndexStack size
 		macroLayerIndexStackSize--;
+
+		// Layer Debug Mode
+		if ( layerDebugMode )
+		{
+			dbug_msg("LED_layer --> ");
+			printHex_op( macroLayerIndexStack[macroLayerIndexStackSize], 0 );
+			print( " " );
+			printHex_op( state, 0 );
+			print(" ");
+			printHex_op( stateType, 0 );
+			print( NL );
+		}
+
+		uint8_t ledArgs[] = {7, macroLayerIndexStack[macroLayerIndexStackSize], 0};
+		LED_control_capability(0x01, 0x00, (uint8_t*)ledArgs); // need to spoof statetype because control capability won't accept them otherwise
 	}
 
 	// Layer Debug Mode
