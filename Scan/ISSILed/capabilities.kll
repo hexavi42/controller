@@ -23,7 +23,7 @@ Date = 2015-10-09;
 #  Remember, it may be possible that all leds on a single chip are connected.
 #  So it may be possible that you may have index gaps.
 #  i.e. 23 then 144
-ledControl => LED_control_capability( mode : 1, amount : 1, index : 2 );
+ledControl => LED_control_capability( mode : 1, amount : 1, index : 2, layer : 1 ); # adjust if you ever need more than 1 byte's worth of layer indexes
 
 # Defines available to the ISSILed sub-module
 

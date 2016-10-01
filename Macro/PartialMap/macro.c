@@ -172,7 +172,7 @@ void Macro_layerState( uint8_t state, uint8_t stateType, uint16_t layer, uint8_t
 	// If the layer was not in the LayerIndexStack add it
 	if ( !inLayerIndexStack )
 	{
-		uint8_t ledArgs[] = {7, layer, 0};
+		uint8_t ledArgs[] = {7, layer, 0, 0};
 		LED_control_capability(state, stateType, (uint8_t*)ledArgs);
 		macroLayerIndexStack[ macroLayerIndexStackSize++ ] = layer;
 
@@ -215,7 +215,7 @@ void Macro_layerState( uint8_t state, uint8_t stateType, uint16_t layer, uint8_t
 			print( NL );
 		}
 
-		uint8_t ledArgs[] = {7, macroLayerIndexStack[macroLayerIndexStackSize], 0};
+		uint8_t ledArgs[] = {7, macroLayerIndexStack[macroLayerIndexStackSize], 0, 0};
 		LED_control_capability(0x01, 0x00, (uint8_t*)ledArgs); // need to spoof statetype because control capability won't accept them otherwise
 	}
 

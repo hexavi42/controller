@@ -782,8 +782,7 @@ typedef struct LedControl {
 	LedControlMode mode;   // XXX Make sure to adjust the .kll capability if this variable is larger than 8 bits
 	uint8_t        amount;
 	uint16_t       index;
-	// uint8_t        page; // commented out because the assumption is that you only want to control what's on
-							// the current page anyway, so there's no reason to change any other page's values 
+	uint8_t        page; // page 0xFE is reserved for current page, page 0xFF is for all pages
 } LedControl;
 
 uint8_t pow2[8] = {	// unless you have a better idea - this is how I'm avoiding importing math
@@ -802,82 +801,190 @@ void LED_control( LedControl *control )
 
 	// Configure based upon the given mode
 	// TODO Perhaps do gamma adjustment?
+
+	// this actually seems less efficient because C isn't python
+	// also - forget the "current page crap" - that was a crapshoot to begin with
+	// uint8_t pages[] = {control->page % LED_NumPages};
+	// if (control->page == 0xFE) 
+	// {
+	// 	pages[0] = currentPage;
+	// } 
+	// else if (control->page == 0xFF)
+	// {
+	// 	pages = {[0 ... numPages-1]}
+	// } 
+	// else {
+	// 	// nothing happens
+	// }
+
+
 	switch ( control->mode )
 	{
 	case LedControlMode_brightness_decrease:
 		{
 			uint8_t ind = control->index + control->index/8*8; // wooo int math
-			LED_brightnessBuffer[currentPage][ ind + 2 ] -= control->amount;
-			LED_writeReg( 0x24 + ind, LED_brightnessBuffer[currentPage][ ind + 2 ], currentPage );
+			if (control->page == 0xFF)
+			{
+				for ( uint8_t page_n = 0; page_n < LED_NumPages; page_n++) {
+					LED_brightnessBuffer[page_n][ ind + 2 ] -= control->amount;
+					LED_writeReg( 0x24 + ind, LED_brightnessBuffer[page_n][ ind + 2 ], page_n );
+					delayMicroseconds( 10 ); // otherwise everything shits the bed
+				}
+			}
+			else
+			{
+				LED_brightnessBuffer[control->page][ ind + 2 ] -= control->amount;
+				LED_writeReg( 0x24 + ind, LED_brightnessBuffer[control->page][ ind + 2 ], control->page );
+			}
 		}
 		break;
 
 	case LedControlMode_brightness_increase:
 		{
 			uint8_t ind = control->index + control->index/8*8; // wooo int math
-			LED_brightnessBuffer[currentPage][ ind + 2 ] += control->amount;
-			LED_writeReg( 0x24 + ind, LED_brightnessBuffer[currentPage][ ind + 2 ], currentPage );
+			if (control->page == 0xFF)
+			{
+				for ( uint8_t page_n = 0; page_n < LED_NumPages; page_n++) {
+					LED_brightnessBuffer[page_n][ ind + 2 ] += control->amount;
+					LED_writeReg( 0x24 + ind, LED_brightnessBuffer[page_n][ ind + 2 ], page_n);
+					delayMicroseconds( 20 ); // otherwise everything shits the bed
+				}
+			}
+			else
+			{
+				LED_brightnessBuffer[control->page][ ind + 2 ] += control->amount;
+				LED_writeReg( 0x24 + ind, LED_brightnessBuffer[control->page][ ind + 2 ], control->page );
+			}
 		}
 		break;
 
 	case LedControlMode_brightness_set:
 		{
 			uint8_t ind = control->index + control->index/8*8; // wooo int math
-			LED_brightnessBuffer[currentPage][ ind + 2 ] = control->amount;
-			LED_writeReg( 0x24 + ind, control->amount, currentPage );
+			if (control->page == 0xFF)
+			{
+				for ( uint8_t page_n = 0; page_n < LED_NumPages; page_n++) {
+					LED_brightnessBuffer[page_n][ ind + 2 ] = control->amount;
+					LED_writeReg( 0x24 + ind, control->amount, page_n);
+					delayMicroseconds( 20 ); // otherwise everything shits the bed
+				}
+			}
+			else
+			{
+				LED_brightnessBuffer[control->page][ ind + 2 ] = control->amount;
+				LED_writeReg( 0x24 + ind, control->amount, control->page );
+			}
 		}
 		break;
 
 	case LedControlMode_brightness_decrease_all:
 		{
-			for ( uint8_t channel = 0; channel < LED_TotalChannels; channel++ )
+			if (control->page == 0xFF)
 			{
-				// Don't worry about rolling over, the cycle is quick
-				LED_brightnessBuffer[currentPage][ channel + 2 ] -= control->amount;
+				for ( uint8_t page_n = 0; page_n < LED_NumPages; page_n++) {
+					for ( uint8_t channel = 0; channel < LED_TotalChannels; channel++ )
+					{
+						// Don't worry about rolling over, the cycle is quick
+						LED_brightnessBuffer[page_n][ channel + 2 ] -= control->amount;
+					}
+					LED_sendPage( (uint8_t*)LED_brightnessBuffer[page_n], sizeof( LED_brightnessBuffer[page_n] ), page_n );
+					delayMicroseconds( 20 ); // otherwise everything shits the bed
+				}
 			}
-			// Sync LED buffer with ISSI chip buffer
-			// TODO Support multiple frames
-			LED_sendPage( (uint8_t*)LED_brightnessBuffer[currentPage], sizeof( LED_brightnessBuffer[currentPage] ), currentPage );
+			else
+			{
+				for ( uint8_t channel = 0; channel < LED_TotalChannels; channel++ )
+				{
+					// Don't worry about rolling over, the cycle is quick
+					LED_brightnessBuffer[control->page][ channel + 2 ] -= control->amount;
+				}
+				// Sync LED buffer with ISSI chip buffer
+				// TODO Support multiple frames
+				LED_sendPage( (uint8_t*)LED_brightnessBuffer[control->page], sizeof( LED_brightnessBuffer[control->page] ), control->page );
+			}
 		}
 		break;
 
 	case LedControlMode_brightness_increase_all:
 		{
-			for ( uint8_t channel = 0; channel < LED_TotalChannels; channel++ )
+			if (control->page == 0xFF)
 			{
-				// Don't worry about rolling over, the cycle is quick
-				LED_brightnessBuffer[currentPage][ channel + 2 ] += control->amount;
+				for ( uint8_t page_n = 0; page_n < LED_NumPages; page_n++) {
+					for ( uint8_t channel = 0; channel < LED_TotalChannels; channel++ )
+					{
+						// Don't worry about rolling over, the cycle is quick
+						LED_brightnessBuffer[page_n][ channel + 2 ] += control->amount;
+					}
+					LED_sendPage( (uint8_t*)LED_brightnessBuffer[page_n], sizeof( LED_brightnessBuffer[page_n] ), page_n );
+					delayMicroseconds( 20 ); // otherwise everything shits the bed
+				}
 			}
-			// Sync LED buffer with ISSI chip buffer
-			// TODO Support multiple frames
-			LED_sendPage( (uint8_t*)LED_brightnessBuffer[currentPage], sizeof( LED_brightnessBuffer[currentPage] ), currentPage );
+			else
+			{
+				for ( uint8_t channel = 0; channel < LED_TotalChannels; channel++ )
+				{
+					// Don't worry about rolling over, the cycle is quick
+					LED_brightnessBuffer[control->page][ channel + 2 ] += control->amount;
+				}
+				// Sync LED buffer with ISSI chip buffer
+				// TODO Support multiple frames
+				LED_sendPage( (uint8_t*)LED_brightnessBuffer[control->page], sizeof( LED_brightnessBuffer[control->page] ), control->page );
+
+			}
 		}
 		break;
 
 	case LedControlMode_brightness_set_all:
 		{
-			for ( uint8_t channel = 0; channel < LED_TotalChannels; channel++ )
+			if (control->page == 0xFF)
 			{
-				LED_brightnessBuffer[currentPage][ channel + 2] = control->amount;
+				for ( uint8_t page_n = 0; page_n < LED_NumPages; page_n++) {
+					for ( uint8_t channel = 0; channel < LED_TotalChannels; channel++ )
+					{
+						// Don't worry about rolling over, the cycle is quick
+						LED_brightnessBuffer[page_n][ channel + 2 ] = control->amount;
+					}
+					LED_sendPage( (uint8_t*)LED_brightnessBuffer[page_n], sizeof( LED_brightnessBuffer[page_n] ), page_n );
+					delayMicroseconds( 20 ); // otherwise everything shits the bed
+
+				}
 			}
-			// Sync LED buffer with ISSI chip buffer
-			// TODO Support multiple frames
-			LED_sendPage( (uint8_t*)LED_brightnessBuffer[currentPage], sizeof( LED_brightnessBuffer[currentPage] ), currentPage );
+			else
+			{
+				for ( uint8_t channel = 0; channel < LED_TotalChannels; channel++ )
+				{
+					// Don't worry about rolling over, the cycle is quick
+					LED_brightnessBuffer[control->page][ channel + 2 ] = control->amount;
+				}
+				// Sync LED buffer with ISSI chip buffer
+				// TODO Support multiple frames
+				LED_sendPage( (uint8_t*)LED_brightnessBuffer[control->page], sizeof( LED_brightnessBuffer[control->page] ), control->page );
+			}
 		}
 		break;
 
 	case LedControlMode_blink_toggle:
 		{
 			uint8_t bitIndex = (control->index) / 8 * 2; // pray the result doesn't go over 18
-			// Modify the value in the existing mask
-			LED_blinkMaskBuffer[currentPage][ bitIndex + 2 ] ^= pow2[control->index % 8];
-			LED_writeReg( 0x12 + bitIndex, LED_blinkMaskBuffer[currentPage][ bitIndex + 2 ], currentPage );
+			if (control->page == 0xFF)
+			{
+				for ( uint8_t page_n = 0; page_n < LED_NumPages; page_n++) {
+					LED_blinkMaskBuffer[page_n][ bitIndex + 2 ] ^= pow2[control->index % 8];
+					LED_writeReg( 0x12 + bitIndex, LED_blinkMaskBuffer[page_n][ bitIndex + 2 ], page_n );
+					delayMicroseconds( 20 ); // otherwise everything shits the bed
+				}
+			}
+			else
+			{
+				LED_blinkMaskBuffer[control->page][ bitIndex + 2 ] ^= pow2[control->index % 8];
+				LED_writeReg( 0x12 + bitIndex, LED_blinkMaskBuffer[control->page][ bitIndex + 2 ], control->page );
+			}
 		}
 		break;
 
 	case LedControlMode_page_set:
 		{
-			currentPage = control->amount % LED_NumPages;
+			currentPage = control->amount;
 			LED_controlBuffer[0x01] = currentPage;
 			LED_writeReg( 0x01, currentPage, 0x0B );
 		}
@@ -886,9 +993,19 @@ void LED_control( LedControl *control )
 	case LedControlMode_enable_toggle:
 		{
 			uint8_t bitIndex = (control->index) / 8 * 2; // pray the result doesn't go over 18
-			// Modify the value in the existing mask
-			LED_enableMaskBuffer[currentPage][ bitIndex + 2 ] ^= pow2[control->index % 8];
-			LED_writeReg( 0x00 + bitIndex, LED_enableMaskBuffer[currentPage][ bitIndex + 2 ], currentPage );
+			if (control->page == 0xFF)
+			{
+				for ( uint8_t page_n = 0; page_n < LED_NumPages; page_n++) {
+					LED_enableMaskBuffer[page_n][ bitIndex + 2 ] ^= pow2[control->index % 8];
+					LED_writeReg( 0x00 + bitIndex, LED_enableMaskBuffer[page_n][ bitIndex + 2 ], page_n );
+					delayMicroseconds( 20 ); // otherwise everything shits the bed
+				}
+			}
+			else
+			{
+				LED_enableMaskBuffer[control->page][ bitIndex + 2 ] ^= pow2[control->index % 8];
+				LED_writeReg( 0x00 + bitIndex, LED_enableMaskBuffer[control->page][ bitIndex + 2 ], control->page );
+			}
 		}
 		break;
 	}
@@ -900,7 +1017,7 @@ void LED_control_capability( TriggerMacro *trigger, uint8_t state, uint8_t state
 	// Display capability name
 	if ( stateType == 0xFF && state == 0xFF )
 	{
-		print("LED_control_capability(mode,amount,index)");
+		print("LED_control_capability(mode,amount,index,page)");
 		return;
 	}
 
