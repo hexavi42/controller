@@ -474,20 +474,20 @@ inline void LED_setup()
 	for ( uint8_t pg = 0; pg < LED_NumPages; pg++ )
 	{
 		LED_sendPage( (uint8_t*)LED_enableMaskBuffer[pg], sizeof( LED_enableMaskBuffer[pg] ), pg );
-		delayMicroseconds( 10 ); // otherwise everything shits the bed
+		delay( 10 ); // otherwise everything shits the bed
 	}
 
 	for ( uint8_t pg = 0; pg < LED_NumPages; pg++ )
 	{
 		LED_sendPage( (uint8_t*)LED_blinkMaskBuffer[pg], sizeof( LED_blinkMaskBuffer[pg] ), pg );
-		delayMicroseconds( 10 ); // otherwise everything shits the bed
+		delay( 10 ); // otherwise everything shits the bed
 	}
 
 	// Set default brightness
 	for ( uint8_t pg = 0; pg < LED_NumPages; pg++ )
 	{
 		LED_sendPage( (uint8_t*)LED_brightnessBuffer[pg], sizeof( LED_brightnessBuffer[pg] ), pg );
-		delayMicroseconds( 10 ); // otherwise everything shits the bed
+		delay( 10 ); // otherwise everything shits the bed
 	}
 
 	// Do not disable software shutdown of ISSI chip unless current is high enough
@@ -827,14 +827,14 @@ void LED_control( LedControl *control )
 			{
 				for ( uint8_t page_n = 0; page_n < LED_NumPages; page_n++) {
 					LED_brightnessBuffer[page_n][ ind + 2 ] -= control->amount;
-					delayMicroseconds( 20 ); // otherwise everything shits the bed
+					delay( 10 ); // otherwise everything shits the bed
 					LED_writeReg( 0x24 + ind, LED_brightnessBuffer[page_n][ ind + 2 ], page_n );
 				}
 			}
 			else
 			{
 				LED_brightnessBuffer[control->page][ ind + 2 ] -= control->amount;
-				delayMicroseconds( 20 ); // otherwise everything shits the bed
+				delay( 10 ); // otherwise everything shits the bed
 				LED_writeReg( 0x24 + ind, LED_brightnessBuffer[control->page][ ind + 2 ], control->page );
 			}
 		}
@@ -847,14 +847,14 @@ void LED_control( LedControl *control )
 			{
 				for ( uint8_t page_n = 0; page_n < LED_NumPages; page_n++) {
 					LED_brightnessBuffer[page_n][ ind + 2 ] += control->amount;
-					delayMicroseconds( 20 ); // otherwise everything shits the bed
+					delay( 10 ); // otherwise everything shits the bed
 					LED_writeReg( 0x24 + ind, LED_brightnessBuffer[page_n][ ind + 2 ], page_n);
 				}
 			}
 			else
 			{
 				LED_brightnessBuffer[control->page][ ind + 2 ] += control->amount;
-				delayMicroseconds( 20 ); // otherwise everything shits the bed
+				delay( 10 ); // otherwise everything shits the bed
 				LED_writeReg( 0x24 + ind, LED_brightnessBuffer[control->page][ ind + 2 ], control->page );
 			}
 		}
@@ -867,14 +867,14 @@ void LED_control( LedControl *control )
 			{
 				for ( uint8_t page_n = 0; page_n < LED_NumPages; page_n++) {
 					LED_brightnessBuffer[page_n][ ind + 2 ] = control->amount;
-					delayMicroseconds( 20 ); // otherwise everything shits the bed
+					delay( 10 ); // otherwise everything shits the bed
 					LED_writeReg( 0x24 + ind, control->amount, page_n);
 				}
 			}
 			else
 			{
 				LED_brightnessBuffer[control->page][ ind + 2 ] = control->amount;
-				delayMicroseconds( 20 ); // otherwise everything shits the bed
+				delay( 10 ); // otherwise everything shits the bed
 				LED_writeReg( 0x24 + ind, control->amount, control->page );
 			}
 		}
@@ -890,7 +890,7 @@ void LED_control( LedControl *control )
 						// Don't worry about rolling over, the cycle is quick
 						LED_brightnessBuffer[page_n][ channel + 2 ] -= control->amount;
 					}
-					delayMicroseconds( 20 ); // otherwise everything shits the bed
+					delay( 10 ); // otherwise everything shits the bed
 					LED_sendPage( (uint8_t*)LED_brightnessBuffer[page_n], sizeof( LED_brightnessBuffer[page_n] ), page_n );
 				}
 			}
@@ -903,7 +903,7 @@ void LED_control( LedControl *control )
 				}
 				// Sync LED buffer with ISSI chip buffer
 				// TODO Support multiple frames
-				delayMicroseconds( 20 ); // otherwise everything shits the bed
+				delay( 10 ); // otherwise everything shits the bed
 				LED_sendPage( (uint8_t*)LED_brightnessBuffer[control->page], sizeof( LED_brightnessBuffer[control->page] ), control->page );
 			}
 		}
@@ -919,7 +919,7 @@ void LED_control( LedControl *control )
 						// Don't worry about rolling over, the cycle is quick
 						LED_brightnessBuffer[page_n][ channel + 2 ] += control->amount;
 					}
-					delayMicroseconds( 20 ); // otherwise everything shits the bed
+					delay( 10 ); // otherwise everything shits the bed
 					LED_sendPage( (uint8_t*)LED_brightnessBuffer[page_n], sizeof( LED_brightnessBuffer[page_n] ), page_n );
 				}
 			}
@@ -932,7 +932,7 @@ void LED_control( LedControl *control )
 				}
 				// Sync LED buffer with ISSI chip buffer
 				// TODO Support multiple frames
-				delayMicroseconds( 20 ); // otherwise everything shits the bed
+				delay( 10 ); // otherwise everything shits the bed
 				LED_sendPage( (uint8_t*)LED_brightnessBuffer[control->page], sizeof( LED_brightnessBuffer[control->page] ), control->page );
 
 			}
@@ -949,7 +949,7 @@ void LED_control( LedControl *control )
 						// Don't worry about rolling over, the cycle is quick
 						LED_brightnessBuffer[page_n][ channel + 2 ] = control->amount;
 					}
-					delayMicroseconds( 20 ); // otherwise everything shits the bed
+					delay( 10 ); // otherwise everything shits the bed
 					LED_sendPage( (uint8_t*)LED_brightnessBuffer[page_n], sizeof( LED_brightnessBuffer[page_n] ), page_n );
 				}
 			}
@@ -962,7 +962,7 @@ void LED_control( LedControl *control )
 				}
 				// Sync LED buffer with ISSI chip buffer
 				// TODO Support multiple frames
-				delayMicroseconds( 20 ); // otherwise everything shits the bed
+				delay( 10 ); // otherwise everything shits the bed
 				LED_sendPage( (uint8_t*)LED_brightnessBuffer[control->page], sizeof( LED_brightnessBuffer[control->page] ), control->page );
 			}
 		}
@@ -975,14 +975,14 @@ void LED_control( LedControl *control )
 			{
 				for ( uint8_t page_n = 0; page_n < LED_NumPages; page_n++) {
 					LED_blinkMaskBuffer[page_n][ bitIndex + 2 ] ^= pow2[control->index % 8];
-					delayMicroseconds( 20 ); // otherwise everything shits the bed
+					delay( 10 ); // otherwise everything shits the bed
 					LED_writeReg( 0x12 + bitIndex, LED_blinkMaskBuffer[page_n][ bitIndex + 2 ], page_n );
 				}
 			}
 			else
 			{
 				LED_blinkMaskBuffer[control->page][ bitIndex + 2 ] ^= pow2[control->index % 8];
-				delayMicroseconds( 20 ); // otherwise everything shits the bed
+				delay( 10 ); // otherwise everything shits the bed
 				LED_writeReg( 0x12 + bitIndex, LED_blinkMaskBuffer[control->page][ bitIndex + 2 ], control->page );
 			}
 		}
@@ -992,7 +992,7 @@ void LED_control( LedControl *control )
 		{
 			currentPage = control->amount;
 			LED_controlBuffer[0x01] = currentPage;
-			delayMicroseconds( 20 ); // otherwise everything shits the bed
+			delay( 10 ); // otherwise everything shits the bed
 			LED_writeReg( 0x01, currentPage, 0x0B );
 		}
 		break;
@@ -1004,14 +1004,14 @@ void LED_control( LedControl *control )
 			{
 				for ( uint8_t page_n = 0; page_n < LED_NumPages; page_n++) {
 					LED_enableMaskBuffer[page_n][ bitIndex + 2 ] ^= pow2[control->index % 8];
-					delayMicroseconds( 20 ); // otherwise everything shits the bed
+					delay( 10 ); // otherwise everything shits the bed
 					LED_writeReg( 0x00 + bitIndex, LED_enableMaskBuffer[page_n][ bitIndex + 2 ], page_n );
 				}
 			}
 			else
 			{
 				LED_enableMaskBuffer[control->page][ bitIndex + 2 ] ^= pow2[control->index % 8];
-				delayMicroseconds( 20 ); // otherwise everything shits the bed
+				delay( 10 ); // otherwise everything shits the bed
 				LED_writeReg( 0x00 + bitIndex, LED_enableMaskBuffer[control->page][ bitIndex + 2 ], control->page );
 			}
 		}
@@ -1039,14 +1039,14 @@ void LED_control_capability( TriggerMacro *trigger, uint8_t state, uint8_t state
 	// Make sure we only send an update every 30 milliseconds at most
 	// It may be possible to optimize speed even further, but will likely require serious time with a logic analyzer
 
-	uint8_t currentTime = (uint8_t)systick_millis_count;
-	int8_t compare = (int8_t)(currentTime - LED_control_timer) & 0x7F;
-	if ( compare < 30 )
-	{
-		// return;
-		delayMicroseconds(compare); // may slow down functionality; if so, comment out and switch back to return
-	}
-	LED_control_timer = currentTime;
+	// uint8_t currentTime = (uint8_t)systick_millis_count;
+	// int8_t compare = (int8_t)(currentTime - LED_control_timer) & 0x7F;
+	// if ( compare < 30 )
+	// {
+	// 	// return;
+	// 	delay(compare); // may slow down functionality; if so, comment out and switch back to return
+	// }
+	// LED_control_timer = currentTime;
 
 	// Set the input structure
 	LedControl *control = (LedControl*)args;
